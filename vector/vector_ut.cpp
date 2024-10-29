@@ -1,6 +1,7 @@
 #include "vector.hpp"
 
 #include <iostream>
+#include <vector>
 
 
 #define UNIT_ASSERT_VALUES_EQUAL(A, B) {                                                           \
@@ -45,6 +46,14 @@ void test_constructors() {
     UNIT_ASSERT_VALUES_EQUAL(vector_initialized.size(), 3);
     UNIT_ASSERT_VALUES_EQUAL(vector_initialized.capacity(), 3);
 
+    // Iterators constructor
+    std::vector<int> sample_vector = { 1, 2, 3 };
+    TVector<int> from_sample_vector(sample_vector.begin(), sample_vector.end());
+    UNIT_ASSERT_VALUES_EQUAL(from_sample_vector.size(), 3);
+    UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[0], 1);
+    UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[1], 2);
+    UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[2], 3);
+
     // Copy constructor
     TVector<TVector<int>> vector_copy(vector_size_initialized);
     UNIT_ASSERT_VALUES_EQUAL(vector_copy.size(), 3);
@@ -66,6 +75,13 @@ void test_constructors() {
     UNIT_ASSERT_VALUES_EQUAL(vector_default.front(), 0);
     UNIT_ASSERT_VALUES_EQUAL(vector_default[1], 5);
     UNIT_ASSERT_VALUES_EQUAL(vector_default.back(), 1);
+
+    // Iterators assign
+    vector_default.assign(sample_vector.begin(), sample_vector.end());
+    UNIT_ASSERT_VALUES_EQUAL(from_sample_vector.size(), 3);
+    UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[0], 1);
+    UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[1], 2);
+    UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[2], 3);
 }
 
 void test_capacity() {
@@ -151,12 +167,52 @@ void test_compare() {
     UNIT_ASSERT(left > right);
 }
 
+void test_iterators() {
+    // Iterator is contiguous
+    static_assert(std::contiguous_iterator<TVector<int>::iterator>);
+
+    // Direct iterator
+    TVector<int> vector = { 1, 2, 3, 4, 5 };
+    size_t i = 1;
+    for (int element : vector) {
+        UNIT_ASSERT_VALUES_EQUAL(element, i);
+        i++;
+    }
+    UNIT_ASSERT_VALUES_EQUAL(i, 6);
+
+    // Reverse iterator
+    i = 0;
+    for (auto it = vector.rbegin(); it != vector.rend(); ++it) {
+        UNIT_ASSERT_VALUES_EQUAL(*it, vector.size() - i);
+        i++;
+    }
+    UNIT_ASSERT_VALUES_EQUAL(i, 5);
+
+    // Direct const iterator
+    const auto& const_vector = vector;
+    i = 1;
+    for (int element : const_vector) {
+        UNIT_ASSERT_VALUES_EQUAL(element, i);
+        i++;
+    }
+    UNIT_ASSERT_VALUES_EQUAL(i, 6);
+
+    // Reverse const iterator
+    i = 0;
+    for (auto it = vector.rbegin(); it != vector.rend(); ++it) {
+        UNIT_ASSERT_VALUES_EQUAL(*it, vector.size() - i);
+        i++;
+    }
+    UNIT_ASSERT_VALUES_EQUAL(i, 5);
+}
+
 
 int main() {
     test_constructors();
     test_capacity();
     test_modifiers();
     test_compare();
+    test_iterators();
 
     return 0;
 }

@@ -1,5 +1,113 @@
 #include <algorithm>
+#include <iterator>
 
+
+template <typename TItemPointer, typename TItemReference>
+class TVectorIterator {
+public:
+    using difference_type = std::ptrdiff_t;
+
+public:
+    TVectorIterator() = default;
+
+    explicit TVectorIterator(TItemPointer pointer)
+        : pointer_(pointer)
+    {}
+
+public:
+    TItemReference operator*() const {
+        return *pointer_;
+    }
+
+    TItemPointer operator->() const {
+        return pointer_;
+    }
+
+    TItemReference operator[](difference_type shift) const {
+        return pointer_[shift];
+    }
+
+    TVectorIterator& operator=(TVectorIterator other) {
+        pointer_ = other.pointer_;
+        return *this;
+    }
+
+public:
+    TVectorIterator& operator++() {
+        ++pointer_;
+        return *this;
+    }
+
+    TVectorIterator operator++(int) {
+        TVectorIterator result(*this);
+        ++pointer_;
+        return result;
+    }
+
+    TVectorIterator& operator--() {
+        --pointer_;
+        return *this;
+    }
+
+    TVectorIterator operator--(int) {
+        TVectorIterator result(*this);
+        --pointer_;
+        return result;
+    }
+
+public:
+    TVectorIterator operator+(difference_type shift) const {
+        TVectorIterator result(*this);
+        result += shift;
+        return result;
+    }
+
+    TVectorIterator operator-(difference_type shift) const {
+        TVectorIterator result(*this);
+        result -= shift;
+        return result;
+    }
+
+    difference_type operator-(TVectorIterator other) const {
+        return pointer_ - other.pointer_;
+    }
+
+    TVectorIterator& operator+=(difference_type shift) {
+        pointer_ += shift;
+        return *this;
+    }
+
+    TVectorIterator& operator-=(difference_type shift) {
+        pointer_ -= shift;
+        return *this;
+    }
+
+public:
+    bool operator==(const TVectorIterator& other) const {
+        return pointer_ == other.pointer_;
+    }
+
+    std::strong_ordering operator<=>(const TVectorIterator& other) const {
+        return pointer_ <=> other.pointer_;
+    }
+
+private:
+    TItemPointer pointer_ = nullptr;
+};
+
+template <typename TItemPointer, typename TItemReference>
+TVectorIterator<TItemPointer, TItemReference> operator+(typename TVectorIterator<TItemPointer, TItemReference>::difference_type shift, TVectorIterator<TItemPointer, TItemReference> it) {
+    return it + shift;
+}
+
+template <typename TItemPointer, typename TItemReference>
+struct std::iterator_traits<TVectorIterator<TItemPointer, TItemReference>> {
+    using difference_type = typename TVectorIterator<TItemPointer, TItemReference>::difference_type;
+    using value_type = std::remove_reference_t<TItemReference>;
+    using pointer = TItemPointer;
+    using reference = TItemReference;
+    using iterator_category = std::contiguous_iterator_tag;
+};
 
 template <typename TItem>
 class TVector {
@@ -9,6 +117,12 @@ public:
     using difference_type = std::ptrdiff_t;
     using reference = TItem&;
     using const_reference = const TItem&;
+    using pointer = TItem*;
+    using const_pointer = const TItem*;
+    using iterator = TVectorIterator<pointer, reference>;
+    using const_iterator = TVectorIterator<const_pointer, const_reference>;
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
 public:
     TVector() = default;
@@ -28,6 +142,16 @@ public:
         reserve(size_);
         for (size_type i = 0; const value_type& value : init) {
             new (begin_ + i++) value_type(value);
+        }
+    }
+
+    template <std::input_iterator TInputIterator>
+    TVector(TInputIterator first, TInputIterator last)
+        : size_(std::distance(first, last))
+    {
+        reserve(size_);
+        for (size_type i = 0; first != last; ++first) {
+            new (begin_ + i++) value_type(*first);
         }
     }
 
@@ -75,6 +199,11 @@ public:
         copy_and_swap(std::move(init));
     }
 
+    template <std::input_iterator TInputIterator>
+    void assign(TInputIterator first, TInputIterator last) {
+        copy_and_swap(first, last);
+    }
+
 public:
     reference at(size_type position) {
         return begin_[position];
@@ -108,12 +237,45 @@ public:
         return at(size_ - 1);
     }
 
-    value_type* data() {
+    pointer data() {
         return begin_;
     }
 
-    const value_type* data() const {
+    const_pointer data() const {
         return begin_;
+    }
+
+public:
+    iterator begin() {
+        return iterator(begin_);
+    }
+
+    const_iterator begin() const {
+        return const_iterator(begin_);
+    }
+
+    iterator end() {
+        return iterator(end_);
+    }
+
+    const_iterator end() const {
+        return const_iterator(end_);
+    }
+
+    reverse_iterator rbegin() {
+        return std::make_reverse_iterator(iterator(end_));
+    }
+
+    const_reverse_iterator rbegin() const {
+        return std::make_reverse_iterator(const_iterator(end_));
+    }
+
+    reverse_iterator rend() {
+        return std::make_reverse_iterator(iterator(begin_));
+    }
+
+    const_reverse_iterator rend() const {
+        return std::make_reverse_iterator(const_iterator(begin_));
     }
 
 public:
@@ -236,7 +398,7 @@ private:
     }
 
     void reallocate(size_t new_capacity) {
-        if (value_type* new_begin = reinterpret_cast<value_type*>(realloc(begin_, new_capacity * sizeof(value_type)))) {
+        if (pointer new_begin = reinterpret_cast<pointer>(realloc(begin_, new_capacity * sizeof(value_type)))) {
             begin_ = new_begin;
             end_ = begin_ + new_capacity;
         } else {
@@ -246,6 +408,6 @@ private:
 
 private:
     size_type size_ = 0;
-    value_type* begin_ = nullptr;
-    value_type* end_ = nullptr;
+    pointer begin_ = nullptr;
+    pointer end_ = nullptr;
 };
