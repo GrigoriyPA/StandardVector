@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <iterator>
+#include <limits>
 
 
 template <typename TItemPointer, typename TItemReference>

@@ -19,7 +19,7 @@
 void test_constructors() {
     // Default constructor
     TVector<int> vector_default;
-    UNIT_ASSERT(vector_default.empty(), true);
+    UNIT_ASSERT(vector_default.empty());
     UNIT_ASSERT_VALUES_EQUAL(vector_default.size(), 0);
     UNIT_ASSERT_VALUES_EQUAL(vector_default.max_size(), std::numeric_limits<ptrdiff_t>::max() / sizeof(int));
     UNIT_ASSERT_VALUES_EQUAL(vector_default.capacity(), 0);
@@ -30,7 +30,7 @@ void test_constructors() {
     UNIT_ASSERT(!vector_size.empty());
     UNIT_ASSERT_VALUES_EQUAL(vector_size.size(), 2);
     UNIT_ASSERT_VALUES_EQUAL(vector_size.capacity(), 2);
-    UNIT_ASSERT(vector_size[0].empty(), true);
+    UNIT_ASSERT(vector_size[0].empty());
 
     // Size initialized constructor
     TVector<TVector<int>> vector_size_initialized(3, TVector<int>(3));
@@ -213,6 +213,8 @@ int main() {
     test_modifiers();
     test_compare();
     test_iterators();
+
+    std::cout << "Tests succesfully passed!\n";
 
     return 0;
 }
