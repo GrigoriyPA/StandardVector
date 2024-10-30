@@ -399,7 +399,7 @@ public:
     }
 
     void pop_back() {
-        begin_[size_--].~TItem();
+        begin_[--size_].~TItem();
     }
 
     void resize(size_type count) {

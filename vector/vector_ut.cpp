@@ -8,38 +8,116 @@
     while ((A) != (B)) {                                                                           \
         std::cerr << __FILE__ << ":" << __LINE__ << " Test " << __func__;                          \
         std::cerr << " failed, values "#A" = " << (A);                                             \
-        std::cerr << " and "#B" = " << (B) << " is not equal\n";                                   \
-        exit(1);                                                                                   \
+        std::cerr << " and "#B" = " << (B) << " is not equal" << std::endl;                        \
+        std::terminate();                                                                          \
     }                                                                                              \
 }
 
 #define UNIT_ASSERT(A) UNIT_ASSERT_VALUES_EQUAL(A, true)
 
 
+// Checks access to uninitialized value
+class TUBChecker {
+    inline static const int TEST_CONST = 1234567;  // Some random constant
+
+    int value_ = 0;
+    int init_guard_ = 0;
+
+public:
+    inline static int created_objects = 0;
+
+    TUBChecker(int value = 0)
+        : value_(value)
+    {
+        init();
+    }
+
+    TUBChecker(const TUBChecker& other)
+        : value_(other.value_)
+    {
+        init();
+    }
+
+    TUBChecker(TUBChecker&& other)
+        : value_(other.value_)
+    {
+        init();
+    }
+
+    TUBChecker& operator=(const TUBChecker& other) {
+        UNIT_ASSERT_VALUES_EQUAL(init_guard_, TEST_CONST);
+        value_ = other.value_;
+        return *this;
+    }
+
+    TUBChecker& operator=(TUBChecker&& other) {
+        UNIT_ASSERT_VALUES_EQUAL(init_guard_, TEST_CONST);
+        value_ = other.value_;
+        return *this;
+    }
+
+    ~TUBChecker() {
+        UNIT_ASSERT_VALUES_EQUAL(init_guard_, TEST_CONST);
+        UNIT_ASSERT(created_objects > 0);
+        created_objects--;
+    }
+
+    bool operator==(const TUBChecker& other) {
+        UNIT_ASSERT_VALUES_EQUAL(init_guard_, TEST_CONST);
+        return value_ == other.value_;
+    }
+
+    bool operator==(int other) {
+        UNIT_ASSERT_VALUES_EQUAL(init_guard_, TEST_CONST);
+        return value_ == other;
+    }
+
+    std::strong_ordering operator<=>(const TUBChecker& other) {
+        UNIT_ASSERT_VALUES_EQUAL(init_guard_, TEST_CONST);
+        return value_ <=> other.value_;
+    }
+
+    int get() const {
+        UNIT_ASSERT_VALUES_EQUAL(init_guard_, TEST_CONST);
+        return value_;
+    }
+
+private:
+    void init() {
+        init_guard_ = TEST_CONST;
+        created_objects++;
+    }
+};
+
+std::ostream& operator<<(std::ostream& stream, const TUBChecker& checker) {
+    stream << checker.get();
+    return stream;
+}
+
 void test_constructors() {
     // Default constructor
-    TVector<int> vector_default;
+    TVector<TUBChecker> vector_default;
     UNIT_ASSERT(vector_default.empty());
     UNIT_ASSERT_VALUES_EQUAL(vector_default.size(), 0);
-    UNIT_ASSERT_VALUES_EQUAL(vector_default.max_size(), std::numeric_limits<ptrdiff_t>::max() / sizeof(int));
+    UNIT_ASSERT_VALUES_EQUAL(vector_default.max_size(), std::numeric_limits<ptrdiff_t>::max() / sizeof(TUBChecker));
     UNIT_ASSERT_VALUES_EQUAL(vector_default.capacity(), 0);
     UNIT_ASSERT_VALUES_EQUAL(vector_default.data(), nullptr);
 
     // Size constructor
-    TVector<TVector<int>> vector_size(2);
+    TVector<TVector<TUBChecker>> vector_size(2);
     UNIT_ASSERT(!vector_size.empty());
     UNIT_ASSERT_VALUES_EQUAL(vector_size.size(), 2);
     UNIT_ASSERT_VALUES_EQUAL(vector_size.capacity(), 2);
     UNIT_ASSERT(vector_size[0].empty());
 
     // Size initialized constructor
-    TVector<TVector<int>> vector_size_initialized(3, TVector<int>(3));
+    TVector<TVector<TUBChecker>> vector_size_initialized(3, TVector<TUBChecker>(3));
     UNIT_ASSERT_VALUES_EQUAL(vector_size_initialized.front().size(), 3);
     UNIT_ASSERT_VALUES_EQUAL(vector_size_initialized.at(1).size(), 3);
     UNIT_ASSERT_VALUES_EQUAL(vector_size_initialized.back().size(), 3);
 
     // Initializer list constructor
-    TVector<int> vector_initialized({0, 1, 2});
+    TVector<TUBChecker> vector_initialized({0, 1, 2});
     UNIT_ASSERT_VALUES_EQUAL(vector_initialized.front(), 0);
     UNIT_ASSERT_VALUES_EQUAL(vector_initialized.at(1), 1);
     UNIT_ASSERT_VALUES_EQUAL(vector_initialized.back(), 2);
@@ -47,15 +125,15 @@ void test_constructors() {
     UNIT_ASSERT_VALUES_EQUAL(vector_initialized.capacity(), 3);
 
     // Iterators constructor
-    std::vector<int> sample_vector = { 1, 2, 3 };
-    TVector<int> from_sample_vector(sample_vector.begin(), sample_vector.end());
+    std::vector<TUBChecker> sample_vector = { 1, 2, 3 };
+    TVector<TUBChecker> from_sample_vector(sample_vector.begin(), sample_vector.end());
     UNIT_ASSERT_VALUES_EQUAL(from_sample_vector.size(), 3);
     UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[0], 1);
     UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[1], 2);
     UNIT_ASSERT_VALUES_EQUAL(from_sample_vector[2], 3);
 
     // Copy constructor
-    TVector<TVector<int>> vector_copy(vector_size_initialized);
+    TVector<TVector<TUBChecker>> vector_copy(vector_size_initialized);
     UNIT_ASSERT_VALUES_EQUAL(vector_copy.size(), 3);
     UNIT_ASSERT_VALUES_EQUAL(vector_copy.front().size(), 3);
 
@@ -85,7 +163,7 @@ void test_constructors() {
 }
 
 void test_capacity() {
-    TVector<TVector<int>> vector(2, {1, 2});
+    TVector<TVector<TUBChecker>> vector(2, {1, 2});
     UNIT_ASSERT_VALUES_EQUAL(vector[0][0], 1);
     UNIT_ASSERT_VALUES_EQUAL(vector[0][1], 2);
     UNIT_ASSERT_VALUES_EQUAL(vector[1][0], 1);
@@ -123,7 +201,7 @@ void test_capacity() {
 }
 
 void test_modifiers() {
-    TVector<int> vector;
+    TVector<TUBChecker> vector;
 
     // Test push back
     size_t size = 5;
@@ -144,7 +222,7 @@ void test_modifiers() {
     UNIT_ASSERT_VALUES_EQUAL(vector.size(), 0);
 
     // Test emplace back
-    TVector<TVector<int>> nested_vector;
+    TVector<TVector<TUBChecker>> nested_vector;
     UNIT_ASSERT_VALUES_EQUAL(nested_vector.emplace_back(1, -1).size(), 1);
     UNIT_ASSERT_VALUES_EQUAL(nested_vector.size(), 1);
     UNIT_ASSERT_VALUES_EQUAL(nested_vector[0][0], -1);
@@ -152,8 +230,8 @@ void test_modifiers() {
 
 void test_compare() {
     // Equal compare
-    TVector<int> left = { 1, 2, 3 };
-    TVector<int> right = { 1, 2, 3 };
+    TVector<TUBChecker> left = { 1, 2, 3 };
+    TVector<TUBChecker> right = { 1, 2, 3 };
     UNIT_ASSERT(left == right);
 
     // Greater and less compare
@@ -169,14 +247,14 @@ void test_compare() {
 
 void test_iterators() {
     // Iterator is contiguous
-    static_assert(std::contiguous_iterator<TVector<int>::iterator>);
+    static_assert(std::contiguous_iterator<TVector<TUBChecker>::iterator>);
 
     // Direct iterator
-    TVector<int> vector = { 1, 2, 3, 4, 5 };
+    TVector<TUBChecker> vector = { 1, 2, 3, 4, 5 };
     vector.reserve(vector.size() * 2);
 
     size_t i = 1;
-    for (int element : vector) {
+    for (auto element : vector) {
         UNIT_ASSERT_VALUES_EQUAL(element, i);
         i++;
     }
@@ -193,7 +271,7 @@ void test_iterators() {
     // Direct const iterator
     const auto& const_vector = vector;
     i = 1;
-    for (int element : const_vector) {
+    for (auto element : const_vector) {
         UNIT_ASSERT_VALUES_EQUAL(element, i);
         i++;
     }
@@ -210,40 +288,40 @@ void test_iterators() {
 
 void test_advanced_modifiers() {
     // Test erase
-    TVector<int> vector_erase = { 1, 2, 3, 4, 5, 6 };
-    int erased_value = *vector_erase.erase(vector_erase.begin() + 1, vector_erase.begin() + 3);
+    TVector<TUBChecker> vector_erase = { 1, 2, 3, 4, 5, 6 };
+    auto erased_value = *vector_erase.erase(vector_erase.begin() + 1, vector_erase.begin() + 3);
     UNIT_ASSERT_VALUES_EQUAL(erased_value, 4);
-    UNIT_ASSERT(vector_erase == TVector<int>({1, 4, 5, 6}));
+    UNIT_ASSERT(vector_erase == TVector<TUBChecker>({1, 4, 5, 6}));
 
     auto erased_it = vector_erase.erase(vector_erase.begin() + 3);
     UNIT_ASSERT(erased_it == vector_erase.end());
-    UNIT_ASSERT(vector_erase == TVector<int>({1, 4, 5}));
+    UNIT_ASSERT(vector_erase == TVector<TUBChecker>({1, 4, 5}));
 
     // Test emplace
-    TVector<TVector<int>> vector_emplace;
+    TVector<TVector<TUBChecker>> vector_emplace;
     vector_emplace.emplace(vector_emplace.begin(), 1, -1);
     vector_emplace.emplace(vector_emplace.begin(), 2, 3);
-    UNIT_ASSERT(vector_emplace == TVector<TVector<int>>({{3, 3}, {-1}}));
+    UNIT_ASSERT(vector_emplace == TVector<TVector<TUBChecker>>({{3, 3}, {-1}}));
 
     auto emplace_it = vector_emplace.emplace(vector_emplace.begin() + 1, 3, 5);
     UNIT_ASSERT(emplace_it == vector_emplace.begin() + 1);
-    UNIT_ASSERT(vector_emplace == TVector<TVector<int>>({{3, 3}, {5, 5, 5}, {-1}}));
+    UNIT_ASSERT(vector_emplace == TVector<TVector<TUBChecker>>({{3, 3}, {5, 5, 5}, {-1}}));
 
     // Test insert
-    TVector<int> vector_insert;
+    TVector<TUBChecker> vector_insert;
 
     vector_insert.insert(vector_insert.begin(), 1);
-    UNIT_ASSERT(vector_insert == TVector<int>({1}));
+    UNIT_ASSERT(vector_insert == TVector<TUBChecker>({1}));
 
     vector_insert.insert(vector_insert.begin(), 2, -1);
-    UNIT_ASSERT(vector_insert == TVector<int>({-1, -1, 1}));
+    UNIT_ASSERT(vector_insert == TVector<TUBChecker>({-1, -1, 1}));
 
     auto insert_it = vector_insert.insert(vector_insert.begin() + 1, {5, 6});
     UNIT_ASSERT(insert_it == vector_insert.begin() + 1);
-    UNIT_ASSERT(vector_insert == TVector<int>({-1, 5, 6, -1, 1}));
+    UNIT_ASSERT(vector_insert == TVector<TUBChecker>({-1, 5, 6, -1, 1}));
 
     vector_insert.insert(vector_insert.begin() + 3, vector_erase.begin(), vector_erase.end());
-    UNIT_ASSERT(vector_insert == TVector<int>({-1, 5, 6, 1, 4, 5, -1, 1}));
+    UNIT_ASSERT(vector_insert == TVector<TUBChecker>({-1, 5, 6, 1, 4, 5, -1, 1}));
 }
 
 int main() {
@@ -253,6 +331,9 @@ int main() {
     test_compare();
     test_iterators();
     test_advanced_modifiers();
+
+    // Check destructors calling
+    UNIT_ASSERT_VALUES_EQUAL(TUBChecker::created_objects, 0);
 
     std::cout << "Tests succesfully passed!\n";
 
