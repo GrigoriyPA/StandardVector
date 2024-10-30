@@ -3,7 +3,7 @@
 #include <limits>
 
 
-template <typename TItemPointer, typename TItemReference>
+template <typename TItem, typename TItemPointer = TItem*, typename TItemReference = TItem&>
 class TVectorIterator {
 public:
     using difference_type = std::ptrdiff_t;
@@ -13,6 +13,10 @@ public:
 
     explicit TVectorIterator(TItemPointer pointer)
         : pointer_(pointer)
+    {}
+
+    TVectorIterator(const TVectorIterator<TItem>& iterator)
+        : pointer_(iterator.get())
     {}
 
 public:
@@ -31,6 +35,10 @@ public:
     TVectorIterator& operator=(TVectorIterator other) {
         pointer_ = other.pointer_;
         return *this;
+    }
+
+    TItemPointer get() const {
+        return pointer_;
     }
 
 public:
@@ -96,15 +104,15 @@ private:
     TItemPointer pointer_ = nullptr;
 };
 
-template <typename TItemPointer, typename TItemReference>
-TVectorIterator<TItemPointer, TItemReference> operator+(typename TVectorIterator<TItemPointer, TItemReference>::difference_type shift, TVectorIterator<TItemPointer, TItemReference> it) {
+template <typename TItem, typename TItemPointer, typename TItemReference>
+TVectorIterator<TItem, TItemPointer, TItemReference> operator+(typename TVectorIterator<TItem, TItemPointer, TItemReference>::difference_type shift, TVectorIterator<TItem, TItemPointer, TItemReference> it) {
     return it + shift;
 }
 
-template <typename TItemPointer, typename TItemReference>
-struct std::iterator_traits<TVectorIterator<TItemPointer, TItemReference>> {
-    using difference_type = typename TVectorIterator<TItemPointer, TItemReference>::difference_type;
-    using value_type = std::remove_reference_t<TItemReference>;
+template <typename TItem, typename TItemPointer, typename TItemReference>
+struct std::iterator_traits<TVectorIterator<TItem, TItemPointer, TItemReference>> {
+    using difference_type = typename TVectorIterator<TItem, TItemPointer, TItemReference>::difference_type;
+    using value_type = TItem;
     using pointer = TItemPointer;
     using reference = TItemReference;
     using iterator_category = std::contiguous_iterator_tag;
@@ -120,8 +128,8 @@ public:
     using const_reference = const TItem&;
     using pointer = TItem*;
     using const_pointer = const TItem*;
-    using iterator = TVectorIterator<pointer, reference>;
-    using const_iterator = TVectorIterator<const_pointer, const_reference>;
+    using iterator = TVectorIterator<value_type, pointer, reference>;
+    using const_iterator = TVectorIterator<value_type, const_pointer, const_reference>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
@@ -151,8 +159,8 @@ public:
         : size_(std::distance(first, last))
     {
         reserve(size_);
-        for (size_type i = 0; first != last; ++first) {
-            new (begin_ + i++) value_type(*first);
+        for (size_type i = 0; first != last; ++i, ++first) {
+            new (begin_ + i) value_type(*first);
         }
     }
 
@@ -170,11 +178,8 @@ public:
     }
 
     ~TVector() {
-        if (begin_ != nullptr) {
-            free(begin_);
-            begin_ = nullptr;
-            end_ = nullptr;
-        }
+        resize(0);
+        shrink_to_fit();
     }
 
     TVector& operator=(const TVector& other) {
@@ -256,27 +261,27 @@ public:
     }
 
     iterator end() {
-        return iterator(end_);
+        return begin() + size_;
     }
 
     const_iterator end() const {
-        return const_iterator(end_);
+        return begin() + size_;
     }
 
     reverse_iterator rbegin() {
-        return std::make_reverse_iterator(iterator(end_));
+        return std::make_reverse_iterator(end());
     }
 
     const_reverse_iterator rbegin() const {
-        return std::make_reverse_iterator(const_iterator(end_));
+        return std::make_reverse_iterator(end());
     }
 
     reverse_iterator rend() {
-        return std::make_reverse_iterator(iterator(begin_));
+        return std::make_reverse_iterator(begin());
     }
 
     const_reverse_iterator rend() const {
-        return std::make_reverse_iterator(const_iterator(begin_));
+        return std::make_reverse_iterator(begin());
     }
 
 public:
@@ -318,6 +323,62 @@ public:
             begin_[i].~TItem();
         }
         size_ = 0;
+    }
+
+    iterator insert(const_iterator it, const value_type& value) {
+        return emplace(it, value);
+    }
+
+    iterator insert(const_iterator it, value_type&& value) {
+        return emplace(it, std::move(value));
+    }
+
+    iterator insert(const_iterator it, size_type count, const value_type& value) {
+        difference_type pos = it - begin();
+        move_range(pos, count);
+        for (size_type i = pos; i < pos + count; ++i) {
+            begin_[i] = value;
+        }
+        return begin() + pos;
+    }
+
+    iterator insert(const_iterator it, std::initializer_list<value_type> init) {
+        difference_type pos = it - begin();
+        move_range(pos, init.size());
+        for (size_type i = pos; const value_type& value : init) {
+            begin_[i++] = value;
+        }
+        return begin() + pos;
+    }
+
+    template <std::input_iterator TInputIterator>
+    iterator insert(const_iterator it, TInputIterator first, TInputIterator last) {
+        difference_type pos = it - begin();
+        move_range(pos, std::distance(first, last));
+        for (size_type i = pos; first != last; ++i, ++first) {
+            begin_[i] = *first;
+        }
+        return begin() + pos;
+    }
+
+    template <typename... TArgs>
+    iterator emplace(const_iterator it, TArgs&&... args) {
+        difference_type pos = it - begin();
+        move_range(pos, 1);
+        begin_[pos] = value_type(std::forward<TArgs>(args)...);
+        return begin() + pos;
+    }
+
+    iterator erase(const_iterator it) {
+        difference_type pos = it - begin();
+        erase_range(pos, 1);
+        return begin() + pos;
+    }
+
+    iterator erase(const_iterator first, const_iterator last) {
+        difference_type pos = first - begin();
+        erase_range(pos, last - first);
+        return begin() + pos;
     }
 
     void push_back(value_type value) {
@@ -396,6 +457,28 @@ private:
     void copy_and_swap(TArgs&&... args) {
         TVector object_copy(std::forward<TArgs>(args)...);
         swap(object_copy);
+    }
+
+    void move_range(size_type pos, size_type count) {
+        if (count == 0) {
+            return;
+        }
+
+        resize(size_ + count);
+        for (size_type i = size_ - 1; i >= pos + count; --i) {
+            std::swap(begin_[i], begin_[i - count]);
+        }
+    }
+
+    void erase_range(size_type pos, size_type count) {
+        if (count == 0) {
+            return;
+        }
+
+        for (size_type i = pos; i + count < size_; ++i) {
+            std::swap(begin_[i], begin_[i + count]);
+        }
+        resize(size_ - count);
     }
 
     void reallocate(size_t new_capacity) {

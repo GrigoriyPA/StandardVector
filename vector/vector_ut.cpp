@@ -173,6 +173,8 @@ void test_iterators() {
 
     // Direct iterator
     TVector<int> vector = { 1, 2, 3, 4, 5 };
+    vector.reserve(vector.size() * 2);
+
     size_t i = 1;
     for (int element : vector) {
         UNIT_ASSERT_VALUES_EQUAL(element, i);
@@ -206,6 +208,43 @@ void test_iterators() {
     UNIT_ASSERT_VALUES_EQUAL(i, 5);
 }
 
+void test_advanced_modifiers() {
+    // Test erase
+    TVector<int> vector_erase = { 1, 2, 3, 4, 5, 6 };
+    int erased_value = *vector_erase.erase(vector_erase.begin() + 1, vector_erase.begin() + 3);
+    UNIT_ASSERT_VALUES_EQUAL(erased_value, 4);
+    UNIT_ASSERT(vector_erase == TVector<int>({1, 4, 5, 6}));
+
+    auto erased_it = vector_erase.erase(vector_erase.begin() + 3);
+    UNIT_ASSERT(erased_it == vector_erase.end());
+    UNIT_ASSERT(vector_erase == TVector<int>({1, 4, 5}));
+
+    // Test emplace
+    TVector<TVector<int>> vector_emplace;
+    vector_emplace.emplace(vector_emplace.begin(), 1, -1);
+    vector_emplace.emplace(vector_emplace.begin(), 2, 3);
+    UNIT_ASSERT(vector_emplace == TVector<TVector<int>>({{3, 3}, {-1}}));
+
+    auto emplace_it = vector_emplace.emplace(vector_emplace.begin() + 1, 3, 5);
+    UNIT_ASSERT(emplace_it == vector_emplace.begin() + 1);
+    UNIT_ASSERT(vector_emplace == TVector<TVector<int>>({{3, 3}, {5, 5, 5}, {-1}}));
+
+    // Test insert
+    TVector<int> vector_insert;
+
+    vector_insert.insert(vector_insert.begin(), 1);
+    UNIT_ASSERT(vector_insert == TVector<int>({1}));
+
+    vector_insert.insert(vector_insert.begin(), 2, -1);
+    UNIT_ASSERT(vector_insert == TVector<int>({-1, -1, 1}));
+
+    auto insert_it = vector_insert.insert(vector_insert.begin() + 1, {5, 6});
+    UNIT_ASSERT(insert_it == vector_insert.begin() + 1);
+    UNIT_ASSERT(vector_insert == TVector<int>({-1, 5, 6, -1, 1}));
+
+    vector_insert.insert(vector_insert.begin() + 3, vector_erase.begin(), vector_erase.end());
+    UNIT_ASSERT(vector_insert == TVector<int>({-1, 5, 6, 1, 4, 5, -1, 1}));
+}
 
 int main() {
     test_constructors();
@@ -213,6 +252,7 @@ int main() {
     test_modifiers();
     test_compare();
     test_iterators();
+    test_advanced_modifiers();
 
     std::cout << "Tests succesfully passed!\n";
 
